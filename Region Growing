@@ -1,0 +1,80 @@
+import numpy as np
+from skimage.segmentation import slic
+from skimage.color import rgb2lab
+from skimage import io
+import matplotlib.pyplot as plt
+
+def select_seeds(superpixels, image, num_seeds=10):
+    # Μετατροπή της εικόνας σε LAB για καλύτερη ομοιότητα χρώματος
+    lab_image = rgb2lab(image)
+    brightness = np.mean(lab_image, axis=2)
+    
+    # Επιλέγουμε τα φωτεινότερα σημεία ως σπόρους
+    seed_indices = np.argsort(brightness.flatten())[-num_seeds:]
+    seeds = np.unravel_index(seed_indices, brightness.shape)
+    return list(zip(seeds[0], seeds[1]))
+
+def get_neighbors(pixel, superpixels):
+    # Επιστρέφει τους 8-γειτονικούς κόμβους
+    x, y = pixel
+    neighbors = [(x-1, y), (x+1, y), (x, y-1), (x, y+1),
+                 (x-1, y-1), (x-1, y+1), (x+1, y-1), (x+1, y+1)]
+    # Κρατάμε μόνο όσους βρίσκονται εντός των ορίων της εικόνας
+    valid_neighbors = [(i, j) for i, j in neighbors if 0 <= i < superpixels.shape[0] and 0 <= j < superpixels.shape[1]]
+    return valid_neighbors
+
+def similar(region, neighbor, image, threshold=30):
+    # Υπολογίζει την ομοιότητα των χρωμάτων σε LAB χρωματικό χώρο
+    lab_image = rgb2lab(image)
+    region_color = np.mean([lab_image[x, y] for x, y in region], axis=0)
+    neighbor_color = lab_image[neighbor]
+    distance = np.linalg.norm(region_color - neighbor_color)
+    return distance < threshold
+
+def region_growing(superpixels, image, num_seeds=10, threshold=30):
+    seeds = select_seeds(superpixels, image, num_seeds)
+    regions = []
+    visited = set()
+
+    for seed in seeds:
+        if seed in visited:
+            continue
+        
+        region = [seed]
+        queue = get_neighbors(seed, superpixels)
+        visited.add(seed)
+
+        while queue:
+            neighbor = queue.pop(0)
+            if neighbor not in visited and similar(region, neighbor, image, threshold):
+                region.append(neighbor)
+                visited.add(neighbor)
+                queue.extend(get_neighbors(neighbor, superpixels))
+        
+        regions.append(region)
+    
+    return regions
+
+# Φόρτωση εικόνας και παραγωγή υπερ-εικονοστοιχείων
+image = io.imread('sample_image.jpg')
+superpixels = slic(image, n_segments=300, compactness=10)
+
+# Εφαρμογή ανάπτυξης περιοχών
+regions = region_growing(superpixels, image)
+
+# Απεικόνιση των αποτελεσμάτων
+plt.imshow(superpixels, cmap='jet')
+plt.title("Superpixels")
+plt.show()
+
+# Χρωματίζουμε τα segments για καλύτερη οπτικοποίηση
+output = np.zeros_like(image)
+colors = np.random.randint(0, 255, (len(regions), 3))
+
+for i, region in enumerate(regions):
+    for x, y in region:
+        output[x, y] = colors[i]
+
+plt.imshow(output)
+plt.title("Region Growing Result")
+plt.show()
