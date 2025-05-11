@@ -1,0 +1,28 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from skimage.segmentation import slic, mark_boundaries
+from skimage.color import rgb2gray
+from skimage import io
+
+def generate_superpixels(image_path, n_segments=300, compactness=10, sigma=1):
+    # Φόρτωση της εικόνας
+    image = io.imread(image_path)
+    
+    # Δημιουργία superpixels
+    superpixels = slic(image, n_segments=n_segments, compactness=compactness, sigma=sigma, start_label=1)
+    
+    # Απεικόνιση των superpixels με τα περιγράμματα
+    plt.figure(figsize=(15, 7))
+    plt.subplot(1, 2, 1)
+    plt.imshow(image)
+    plt.title("Αρχική Εικόνα")
+    
+    plt.subplot(1, 2, 2)
+    plt.imshow(mark_boundaries(image, superpixels))
+    plt.title(f"Superpixels (Segments: {n_segments}, Compactness: {compactness})")
+    plt.show()
+    
+    return superpixels
+
+# Δοκιμή του κώδικα
+superpixels = generate_superpixels("sample_image.jpg", n_segments=300, compactness=20, sigma=2)
